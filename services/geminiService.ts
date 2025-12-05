@@ -1,9 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { Point, PointType } from "../types";
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 /**
  * Sends the image and point prompts to Gemini to perform semantic segmentation/extraction.
  */
@@ -11,11 +8,15 @@ export const segmentImage = async (
   imageBase64: string,
   points: Point[]
 ): Promise<string> => {
+  // Initialize Gemini Client inside the function to ensure we use the latest API_KEY
+  // from the environment (which might be updated by window.aistudio.openSelectKey)
   if (!process.env.API_KEY) {
-    throw new Error("API Key is missing.");
+    throw new Error("API Key is missing. Please select a key.");
   }
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  // Model selection: gemini-3-pro-image-preview is best for complex image editing/reasoning tasks
+  // Use 'gemini-3-pro-image-preview' for high-quality image generation and editing tasks.
+  // This model is often more reliable for complex instruction following like SAM3 behavior.
   const model = "gemini-3-pro-image-preview";
 
   const positivePoints = points.filter(p => p.type === PointType.POSITIVE);
@@ -70,13 +71,14 @@ export const segmentImage = async (
         ],
       },
       config: {
-        // gemini-3-pro-image-preview specific configurations can be added here if needed
+         // Do not set responseMimeType or responseSchema for image generation models
       },
     });
 
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
       const parts = candidates[0].content.parts;
+      // Iterate through all parts to find the image part
       for (const part of parts) {
         if (part.inlineData && part.inlineData.data) {
            return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
@@ -88,6 +90,10 @@ export const segmentImage = async (
 
   } catch (error: any) {
     console.error("Gemini Segmentation Error:", error);
+    // Provide more specific error messages for common issues
+    if (error.message?.includes("403") || error.status === "PERMISSION_DENIED" || error.code === 403) {
+        throw new Error("Permission Denied. Please ensure you have selected a valid API Key with access to the Gemini API.");
+    }
     throw new Error(error.message || "Failed to segment image.");
   }
 };

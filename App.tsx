@@ -1,9 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageUploader from './components/ImageUploader';
 import InteractiveCanvas from './components/InteractiveCanvas';
 import Toolbar from './components/Toolbar';
 import { Point, PointType, AppState } from './types';
 import { segmentImage } from './services/geminiService';
+
+// Define a local interface for AIStudio to avoid global type conflicts
+interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -12,6 +18,45 @@ const App: React.FC = () => {
   const [points, setPoints] = useState<Point[]>([]);
   const [mode, setMode] = useState<PointType>(PointType.POSITIVE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+
+  // Check for API Key on mount
+  useEffect(() => {
+    const checkApiKey = async () => {
+      try {
+        const aistudio = (window as any).aistudio as AIStudio | undefined;
+        if (aistudio) {
+          const hasKey = await aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } else {
+          // Fallback for dev environments without the studio wrapper
+          setHasApiKey(true);
+        }
+      } catch (e) {
+        console.error("Error checking API key:", e);
+        setHasApiKey(false);
+      } finally {
+        setIsCheckingKey(false);
+      }
+    };
+    checkApiKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    setPermissionError(null); // Clear previous errors
+    const aistudio = (window as any).aistudio as AIStudio | undefined;
+    if (aistudio) {
+      try {
+        await aistudio.openSelectKey();
+        // Assuming success if the modal closes, as per SDK guidelines we assume it was successful to avoid race conditions
+        setHasApiKey(true);
+      } catch (e) {
+        console.error("Error selecting API key:", e);
+      }
+    }
+  };
 
   const handleImageSelected = (base64: string) => {
     setSourceImage(base64);
@@ -46,7 +91,14 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error(error);
       setAppState(AppState.ERROR);
-      setErrorMessage(error.message || "Something went wrong. Please try again.");
+      
+      // If we get a permission denied error during processing, prompt for key again
+      if (error.message?.includes("Permission Denied")) {
+        setHasApiKey(false);
+        setPermissionError("Your selected API Key does not have permission to access the Gemini 3 Pro model. Please select a paid project key or enable the API.");
+      } else {
+        setErrorMessage(error.message || "Something went wrong. Please try again.");
+      }
     }
   };
 
@@ -56,6 +108,56 @@ const App: React.FC = () => {
     setPoints([]);
     setAppState(AppState.IDLE);
   };
+
+  if (isCheckingKey) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
+          <p className="text-gray-400">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasApiKey) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center shadow-2xl">
+          <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+             <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 19l-1 1-1 1-2-2 2-2-.757-.757A6 6 0 1121 9z" />
+             </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-3">API Key Required</h2>
+          
+          {permissionError ? (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-6 text-sm text-red-200">
+              {permissionError}
+            </div>
+          ) : (
+            <p className="text-gray-400 mb-8">
+              To use the SmartSegment SAM3 features, please select a valid Google Gemini API Key.
+              <br/><br/>
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline text-sm">
+                Learn more about billing requirements
+              </a>
+            </p>
+          )}
+
+          <button
+            onClick={handleSelectKey}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
+          >
+            <span>{permissionError ? 'Select Different Key' : 'Select API Key'}</span>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col font-sans">
@@ -73,14 +175,23 @@ const App: React.FC = () => {
             </h1>
           </div>
           
-          {sourceImage && (
-            <button 
-              onClick={resetAll}
-              className="text-sm text-gray-400 hover:text-white transition-colors"
+          <div className="flex items-center gap-4">
+            {sourceImage && (
+              <button 
+                onClick={resetAll}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                Start Over
+              </button>
+            )}
+            {/* Optional: Change API Key button */}
+             <button 
+              onClick={handleSelectKey}
+              className="text-xs text-gray-500 hover:text-indigo-400 border border-gray-800 hover:border-indigo-500/50 rounded-full px-3 py-1 transition-all"
             >
-              Start Over
+              API Key
             </button>
-          )}
+          </div>
         </div>
       </header>
 
