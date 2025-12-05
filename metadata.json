@@ -1,0 +1,5 @@
+{
+  "name": "SmartSegment AI",
+  "description": "An interactive image segmentation tool powered by Gemini. Upload an image, click to select objects (add) or exclude areas (subtract), and magically extract the subject.",
+  "requestFramePermissions": []
+}
