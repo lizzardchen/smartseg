@@ -15,9 +15,9 @@ export const segmentImage = async (
   }
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  // Use 'gemini-3-pro-image-preview' for high-quality image generation and editing tasks.
-  // This model is often more reliable for complex instruction following like SAM3 behavior.
-  const model = "gemini-3-pro-image-preview";
+  // Use 'gemini-2.5-flash-image' which is generally available on the free tier.
+  // This model is capable of image editing and following segmentation instructions.
+  const model = "gemini-2.5-flash-image";
 
   const positivePoints = points.filter(p => p.type === PointType.POSITIVE);
   const negativePoints = points.filter(p => p.type === PointType.NEGATIVE);
@@ -46,7 +46,7 @@ export const segmentImage = async (
        - Example: If (+) is on a table and (-) is on a vase, output the table WITHOUT the vase.
     3. **Output Format**: 
        - Generate an image containing ONLY the final segmented subject.
-       - The background MUST be pure WHITE (RGB 255,255,255).
+       - The background MUST be pure WHITE (RGB 255,255,255) or Transparent if supported.
        - Maintain the original resolution and perspective of the object.
        - Ensure high-quality edge detection (clean matte).
   `;
@@ -92,7 +92,10 @@ export const segmentImage = async (
     console.error("Gemini Segmentation Error:", error);
     // Provide more specific error messages for common issues
     if (error.message?.includes("403") || error.status === "PERMISSION_DENIED" || error.code === 403) {
-        throw new Error("Permission Denied. Please ensure you have selected a valid API Key with access to the Gemini API.");
+        throw new Error("Permission Denied. Please ensure your API Key is valid. If using a free key, ensure it is active in Google AI Studio.");
+    }
+    if (error.message?.includes("400") || error.status === "INVALID_ARGUMENT") {
+        throw new Error("Invalid Request. The image might be too large or the format unsupported.");
     }
     throw new Error(error.message || "Failed to segment image.");
   }

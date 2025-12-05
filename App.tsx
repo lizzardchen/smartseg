@@ -95,7 +95,7 @@ const App: React.FC = () => {
       // If we get a permission denied error during processing, prompt for key again
       if (error.message?.includes("Permission Denied")) {
         setHasApiKey(false);
-        setPermissionError("Your selected API Key does not have permission to access the Gemini 3 Pro model. Please select a paid project key or enable the API.");
+        setPermissionError("Access Denied. Please ensure you have selected a valid API Key.");
       } else {
         setErrorMessage(error.message || "Something went wrong. Please try again.");
       }
@@ -137,10 +137,12 @@ const App: React.FC = () => {
             </div>
           ) : (
             <p className="text-gray-400 mb-8">
-              To use the SmartSegment SAM3 features, please select a valid Google Gemini API Key.
+              To use SmartSegment, you need a Google Gemini API Key.
+              <br/>
+              Free keys are available via Google AI Studio.
               <br/><br/>
-              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline text-sm">
-                Learn more about billing requirements
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline text-sm">
+                Get a Free API Key here
               </a>
             </p>
           )}
@@ -149,7 +151,7 @@ const App: React.FC = () => {
             onClick={handleSelectKey}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
           >
-            <span>{permissionError ? 'Select Different Key' : 'Select API Key'}</span>
+            <span>{permissionError ? 'Re-select API Key' : 'Select API Key'}</span>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
